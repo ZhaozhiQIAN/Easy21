@@ -4,7 +4,7 @@ import numpy as np
 class Card(object):
     def __init__(self):
         self.value = np.random.randint(low=1, high=11, size=1)[0]
-        self.is_black = np.random.choice([True, False], size=1, p=[2.0/3, 1.0/3])[0]
+        self.is_black = np.random.choice([True, False], size=1, p=[1.0/2, 1.0/2])[0]
 
     def __hash__(self):
         return hash((self.value, self.is_black))

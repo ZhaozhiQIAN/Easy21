@@ -1,4 +1,5 @@
-from mc_control import *
+from utils import *
+from collections import Counter
 
 
 class Q_Learning_Control(object):
@@ -49,8 +50,8 @@ def Q_Learning_simulation(learning_episode, evaluation_episode):
         one_episode(policy)
     policy.Q.save_buffer('Q_Learning_Q')
     policy.set_in_use(True)
-    success = [one_episode(policy) for i in xrange(evaluation_episode)]
-    print sum(success)
+    result = [one_episode(policy) for i in xrange(evaluation_episode)]
+    print Counter(result)
 
 if __name__ == '__main__':
     Q_Learning_simulation(1000000, 10000)
