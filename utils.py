@@ -14,23 +14,14 @@ class StateAction(object):
         state_sig = state.get_signature()
         return self.buffer[state_sig[0] - 1, state_sig[1] - 1, action]
 
-    def get_value_sig(self, state_sig, action):
-        return self.buffer[state_sig[0] - 1, state_sig[1] - 1, action]
-
     # increment the value by inc
     def inc_value(self, state, action, inc):
         state_sig = state.get_signature()
         self.buffer[state_sig[0] - 1, state_sig[1] - 1, action] += inc
 
-    def inc_value_sig(self, state_sig, action, inc):
-        self.buffer[state_sig[0] - 1, state_sig[1] - 1, action] += inc
-
     # set the value to be val
     def set_value(self, state, action, val):
         state_sig = state.get_signature()
-        self.buffer[state_sig[0] - 1, state_sig[1] - 1, action] = val
-
-    def set_value_sig(self, state_sig, action, val):
         self.buffer[state_sig[0] - 1, state_sig[1] - 1, action] = val
 
     def reset(self):
@@ -93,4 +84,67 @@ def one_episode(policy):
             policy.update_policy_online(state, state_new, action, reward)
         state = state_new
     return get_reward_from_state(state_new)
+
+
+def sample_indices(prob_mat):
+    probs = np.reshape(prob_mat, prob_mat.size)
+    location = np.random.choice(np.arange(prob_mat.size), size=1, p=probs)[0]
+    row = location / 21
+    column = location % 21
+    return row, column
+
+
+class StateTransition(object):
+    """
+    modeling state transition
+    """
+    def __init__(self):
+        # conditional transition probability to non-terminal state
+        self.buffer = np.ones((21, 21), dtype=np.float64) / 21.0
+        # transition to terminal state
+        self.to_terminal = StateAction()
+        self.to_terminal.buffer[:, :, 0] = 0.5
+        self.to_terminal.buffer[:, :, 1] = 1.0
+        # state-action count
+        # self.count = StateAction()
+        # self.count.buffer += 1
+        self.player_sum_count = np.ones(21)
+
+    def get_next_state(self, state, action):
+        prob_terminal = self.to_terminal.get_value(state, action)
+        next_terminal = np.random.choice((False, True), size=1, p=(1.0 - prob_terminal, prob_terminal))[0]
+        if next_terminal:
+            next_state = state.copy()
+            next_state.set_terminal()
+            if action == 0:
+                next_state.player_sum = -1
+            return next_state
+        else:
+            state_sig = state.get_signature()
+            prob = self.buffer[state_sig[1] - 1, :]
+            next_player_sum = np.random.choice(np.arange(1, 22), size=1, p=prob)[0]
+            return State(state_sig[0], next_player_sum, False)
+
+    def update_model(self, state, action, new_state):
+        # t = self.count.get_value(state, action)
+        state_sig = state.get_signature()
+        t = self.player_sum_count[state_sig[1] - 1]
+        if new_state.is_terminal:
+            # update terminal probability
+            old_prob = self.to_terminal.get_value(state, action)
+            new_prob = (old_prob * t + 1.0) / (t + 1.0)
+            self.to_terminal.set_value(state, action, new_prob)
+        else:
+            # update conditional probability
+            new_state_sig = new_state.get_signature()
+            term_prob = self.to_terminal.get_value(state, action)
+            old_prob = self.buffer[state_sig[1] - 1, new_state_sig[1] - 1]
+            new_prob = (old_prob * (1.0 - term_prob) * t + 1) / ((1.0 - term_prob) * t + 1.0)
+            self.buffer[state_sig[1] - 1, new_state_sig[1] - 1] = new_prob
+            self.buffer[state_sig[1] - 1, :] *= 1 / self.buffer[state_sig[1] - 1, :].sum()
+            # update terminal probability
+            new_term_prob = (term_prob * t) / (t + 1.0)
+            self.to_terminal.set_value(state, action, new_term_prob)
+        # self.count.inc_value(state, action, 1)
+        self.player_sum_count[state_sig[1] - 1] += 1
 
